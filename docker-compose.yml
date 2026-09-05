@@ -1,0 +1,116 @@
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  ms-cotizacion-1:
+    build: ./ms-cotizacion
+    environment:
+      INSTANCIA_ID: instancia-1
+      PUERTO: "5000"
+      ARCHIVO_LOG: /resultados/ms-cotizacion-instancia-1.jsonl
+    volumes:
+      - ./resultados:/resultados
+    ports:
+      - "5001:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  ms-cotizacion-2:
+    build: ./ms-cotizacion
+    environment:
+      INSTANCIA_ID: instancia-2
+      PUERTO: "5000"
+      ARCHIVO_LOG: /resultados/ms-cotizacion-instancia-2.jsonl
+    volumes:
+      - ./resultados:/resultados
+    ports:
+      - "5002:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  ms-cotizacion-3:
+    build: ./ms-cotizacion
+    environment:
+      INSTANCIA_ID: instancia-3
+      PUERTO: "5000"
+      ARCHIVO_LOG: /resultados/ms-cotizacion-instancia-3.jsonl
+    volumes:
+      - ./resultados:/resultados
+    ports:
+      - "5003:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  ms-monitor:
+    build: ./ms-monitor
+    env_file: .env
+    environment:
+      ARCHIVO_LOG: /resultados/ms-monitor.jsonl
+      PUERTO_DEBUG: "6000"
+    volumes:
+      - ./resultados:/resultados
+    ports:
+      - "6000:6000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      ms-cotizacion-1:
+        condition: service_started
+      ms-cotizacion-2:
+        condition: service_started
+      ms-cotizacion-3:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6000/status"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  ms-router:
+    build: ./ms-router
+    env_file: .env
+    environment:
+      PUERTO: "8000"
+      ARCHIVO_LOG: /resultados/ms-router.jsonl
+    volumes:
+      - ./resultados:/resultados
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Sin -f: solo confirma que el puerto responde (cualquier código HTTP),
+      # tal como permite 05-docker-compose-y-despliegue.md sección 2. No se usa
+      # /cotizar con el payload real para no inyectar tráfico sintético extra
+      # durante las 60 corridas formales.
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "http://localhost:8000/"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  harness:
+    build: ./harness
+    volumes:
+      - ./resultados:/resultados
+    depends_on:
+      ms-router:
+        condition: service_started
+      ms-monitor:
+        condition: service_healthy
+    profiles:
+      - herramientas
