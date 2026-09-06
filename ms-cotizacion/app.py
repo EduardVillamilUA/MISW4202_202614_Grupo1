@@ -1,7 +1,7 @@
 """
 ms-cotizacion — servicio de negocio bajo prueba (HA-DISP-13 / HA-DISP-14).
-Implementa 01-ms-cotizacion.md + contrato 00-arquitectura-general-y-contratos.md.
-Se despliega 3 veces (misma imagen, distinta INSTANCIA_ID).
+Servicio de cotización con inyección controlada de fallas para el experimento
+de disponibilidad. Se despliega 3 veces (misma imagen, distinta INSTANCIA_ID).
 """
 import os
 import json

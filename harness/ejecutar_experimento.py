@@ -9,8 +9,8 @@ Para cada uno de los 3 tipos de falla, ejecuta 20 corridas:
 
 Al finalizar las 60 corridas, invoca analizar_resultados.py automáticamente.
 
-Uso (dentro del contenedor 'harness', o localmente si se usa la Opción B de
-05-docker compose-y-despliegue.md):
+Uso (dentro del contenedor 'harness', o localmente contra los puertos publicados
+del stack):
     python ejecutar_experimento.py \
         --router-url http://ms-router:8000 \
         --monitor-status-url http://ms-monitor:6000/status \
@@ -52,7 +52,11 @@ def parse_instancias(valor: str):
 
 
 def reiniciar_estado_limpio(instancias: dict, monitor_status_url: str):
-    """Sección 4 de 04-harness-experimento-y-analisis.md."""
+    """
+    Deja el stack en estado limpio y conocido antes de una corrida: limpia
+    cualquier falla activa en las tres instancias y espera a que el Monitor
+    confirme que las tres están 'healthy'. Devuelve True si lo confirmó.
+    """
     for inst_id, url_base in instancias.items():
         try:
             requests.post(f"{url_base}/clear-fault", timeout=3)

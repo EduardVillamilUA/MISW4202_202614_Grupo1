@@ -18,7 +18,7 @@ import requests
 from flask import Flask, jsonify
 
 # ---------------------------------------------------------------------------
-# 1. Configuración por variables de entorno (00-arquitectura, sección 9)
+# 1. Configuración por variables de entorno
 # ---------------------------------------------------------------------------
 
 def _parse_instancias(valor: str) -> dict:
@@ -59,7 +59,7 @@ CICLOS_EXITOSOS_PARA_REINTEGRAR = int(os.getenv("CICLOS_EXITOSOS_PARA_REINTEGRAR
 ARCHIVO_LOG = os.getenv("ARCHIVO_LOG", "/resultados/ms-monitor.jsonl")
 PUERTO_DEBUG = int(os.getenv("PUERTO_DEBUG", "6000"))
 
-# Contrato de negocio compartido (00-arquitectura, secciones 6.2 y 6.3).
+# Contrato de negocio compartido con el resto de componentes.
 # Payload sintético fijo y prima esperada: NO deben cambiarse, el harness usa el mismo.
 PAYLOAD_SINTETICO = {
     "cliente_id": "SINTETICO-CANARY",
@@ -77,7 +77,7 @@ ESTADO_UNHEALTHY = "unhealthy"
 
 
 # ---------------------------------------------------------------------------
-# 2. Registro de eventos (JSON Lines) — 00-arquitectura, sección 7
+# 2. Registro de eventos (JSON Lines)
 # ---------------------------------------------------------------------------
 
 _lock_log = threading.Lock()
@@ -114,7 +114,7 @@ def registrar_evento(evento: str, **campos) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. Conexión a Redis con reintentos (02-ms-monitor, sección 8)
+# 3. Conexión a Redis con reintentos
 # ---------------------------------------------------------------------------
 
 def conectar_redis(intentos_maximos: int = 30, espera_segundos: float = 1.0):
@@ -148,11 +148,11 @@ def conectar_redis(intentos_maximos: int = 30, espera_segundos: float = 1.0):
 
 
 # ---------------------------------------------------------------------------
-# 4. Máquina de estados en memoria (02-ms-monitor, sección 5)
+# 4. Máquina de estados en memoria
 # ---------------------------------------------------------------------------
-# Los contadores viven SOLO en memoria del proceso, por decisión explícita de diseño
-# (00-arquitectura, sección 5.2): ningún otro componente los necesita, solo el resultado
-# final healthy/unhealthy le importa al Router.
+# Los contadores viven SOLO en memoria del proceso, por decisión explícita de diseño:
+# ningún otro componente los necesita, solo el resultado final healthy/unhealthy le
+# importa al Router.
 
 estado_instancias = {
     instancia_id: {
@@ -167,14 +167,14 @@ _lock_estado = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
-# 5. Chequeos individuales (02-ms-monitor, sección 4)
+# 5. Chequeos individuales
 # ---------------------------------------------------------------------------
 
 def chequeo_vida(instancia_id: str, url_base: str, numero_ciclo: int) -> bool:
     """
     Ping/Echo: GET /health. Exitoso solo si responde HTTP 200.
     Cualquier excepción (timeout, conexión rechazada) se trata como FALLO del chequeo,
-    nunca como error del propio Monitor (02-ms-monitor, sección 8).
+    nunca como error del propio Monitor.
     """
     inicio = time.perf_counter()
     resultado, detalle = "fallo", "desconocido"
@@ -213,8 +213,8 @@ def chequeo_semantico(instancia_id: str, url_base: str, numero_ciclo: int) -> bo
     negativos por representación de punto flotante).
 
     Este chequeo es el que detecta la falla 'prima_inconsistente', que el Ping/Echo NO
-    puede detectar por sí solo (00-arquitectura, sección 6.4): esa es precisamente la
-    razón por la que el diseño del Cuaderno III exige ambos chequeos siempre juntos.
+    puede detectar por sí solo (GET /health sigue respondiendo 200): esa es precisamente
+    la razón por la que el diseño exige ambos chequeos siempre juntos.
     """
     inicio = time.perf_counter()
     resultado, detalle = "fallo", "desconocido"
@@ -270,8 +270,8 @@ def chequeo_semantico(instancia_id: str, url_base: str, numero_ciclo: int) -> bo
 def escribir_estado_redis(cliente_redis, instancia_id: str, estado: str, numero_ciclo: int) -> None:
     """
     Persiste el estado en el Registro de Salud. Un fallo de escritura se registra como
-    evento y NO detiene el ciclo del Monitor (02-ms-monitor, sección 8): el siguiente
-    ciclo reintentará con normalidad.
+    evento y NO detiene el ciclo del Monitor: el siguiente ciclo reintentará con
+    normalidad.
     """
     clave = f"{PREFIJO_CLAVE_REDIS}{instancia_id}"
     try:
@@ -296,7 +296,7 @@ def evaluar_instancia(cliente_redis, instancia_id: str, url_base: str, numero_ci
     Ejecuta AMBOS chequeos de una instancia en paralelo entre sí, aplica la máquina de
     estados y, si hay cambio de estado, escribe en Redis inmediatamente.
 
-    Regla del Cuaderno III: el resultado del ciclo es fallido si CUALQUIERA de los dos
+    Regla de evaluación: el resultado del ciclo es fallido si CUALQUIERA de los dos
     chequeos falló; es exitoso solo si AMBOS fueron exitosos. Los dos chequeos no son
     alternativas, operan siempre juntos.
     """
@@ -359,8 +359,8 @@ def evaluar_instancia(cliente_redis, instancia_id: str, url_base: str, numero_ci
 def bucle_monitor(cliente_redis) -> None:
     """
     Ciclo indefinido cada INTERVALO_CICLO_SEGUNDOS. Las tres instancias se verifican
-    de forma CONCURRENTE (Vista de Concurrencia del Cuaderno III), de modo que el
-    tiempo total del ciclo sea ~TIMEOUT_PROBE_SEGUNDOS en el peor caso.
+    de forma CONCURRENTE, de modo que el tiempo total del ciclo sea
+    ~TIMEOUT_PROBE_SEGUNDOS en el peor caso.
     """
     numero_ciclo = 0
     with ThreadPoolExecutor(max_workers=len(INSTANCIAS)) as executor:
@@ -392,11 +392,11 @@ def bucle_monitor(cliente_redis) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 8. Endpoint opcional de depuración (02-ms-monitor, sección 6)
+# 8. Endpoint opcional de depuración
 # ---------------------------------------------------------------------------
 # NO forma parte del protocolo de medición. Los datos oficiales para el análisis salen
 # exclusivamente del archivo JSON Lines. Este endpoint es solo ayuda manual del equipo
-# y sirve además como healthcheck de Docker Compose (05-docker-compose, sección 2).
+# y sirve además como healthcheck de Docker Compose.
 
 app = Flask(__name__)
 
@@ -423,7 +423,7 @@ def main() -> None:
     cliente_redis = conectar_redis()
 
     # Inicializar las tres claves en "healthy" ANTES de registrar el evento de inicio
-    # y antes de que el Router empiece a atender tráfico (00-arquitectura, sección 5.1).
+    # y antes de que el Router empiece a atender tráfico.
     for instancia_id in INSTANCIAS:
         escribir_estado_redis(cliente_redis, instancia_id, ESTADO_HEALTHY, numero_ciclo=0)
 

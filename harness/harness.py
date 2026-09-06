@@ -1,8 +1,7 @@
 """
-harness.py — instrumento de medición de UNA corrida (04-harness-experimento-y-analisis.md).
+harness.py — instrumento de medición de UNA corrida del experimento.
 
-Ejecuta el flujo de la sección 2.2, con los instantes exactos definidos en
-06-protocolo-experimental-y-metricas.md, sección 2:
+Ejecuta el flujo de una corrida con los instantes acordados:
     calentamiento -> t=0 tráfico sostenido -> t=20 inyectar falla ->
     t=60 limpiar falla -> t=100 fin de corrida.
 
@@ -28,9 +27,9 @@ PAYLOAD_SINTETICO = {"cliente_id": "SINTETICO-CANARY", "producto": "viaje", "mon
 PRIMA_ESPERADA = 15000.0
 TOLERANCIA = 0.01
 
-TIMEOUT_CLIENTE_HARNESS_SEGUNDOS = 5.0  # hacia el Router (contrato 00, sección 8)
+TIMEOUT_CLIENTE_HARNESS_SEGUNDOS = 5.0  # hacia el Router
 
-# Instantes de la corrida (segundos desde t=0, sección 2 del documento 06)
+# Instantes de la corrida (segundos desde t=0)
 SOLICITUDES_CALENTAMIENTO = 30
 DURACION_CORRIDA_SEGUNDOS = 100  # t=0 a t=100
 INSTANTE_INYECCION_SEGUNDOS = 20
@@ -84,7 +83,7 @@ def contabilizar_resultado(es_correcta: bool):
 
 
 def enviar_solicitud_cotizacion(router_url: str, archivo_log: str):
-    """Envía una solicitud al Router, mide correctness (sección 2.4) y registra el resultado."""
+    """Envía una solicitud al Router, mide correctness y registra el resultado."""
     id_solicitud = siguiente_id_solicitud()
     timestamp_envio = datetime.now(timezone.utc).isoformat()
     registrar_evento(archivo_log, "solicitud_enviada", id_solicitud=id_solicitud, timestamp_envio=timestamp_envio)
@@ -164,7 +163,7 @@ def tráfico_sostenido(router_url: str, archivo_log: str, instancia_objetivo_url
     """
     Genera tráfico a tasa constante durante DURACION_CORRIDA_SEGUNDOS, usando un pool de hilos
     para que una solicitud lenta (p.ej. durante el timeout inyectado) no retrase las siguientes.
-    Los instantes de inyección/limpieza se calculan como offset desde t=0 (sección 2 del documento 06).
+    Los instantes de inyección/limpieza se calculan como offset desde t=0.
     """
     t0 = time.monotonic()
     inyectada = False

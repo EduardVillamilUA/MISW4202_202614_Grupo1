@@ -1,13 +1,13 @@
 """
 analizar_resultados.py — calcula las métricas de las 60 corridas y produce el veredicto.
 
-Entradas (sección 5.1 de 04-harness-experimento-y-analisis.md):
+Entradas:
     harness-corrida-{tipo}-{numero}.jsonl   (60 archivos, uno por corrida)
     ms-monitor.jsonl                        (acumulativo)
     ms-router.jsonl                         (acumulativo, no se usa para las 4 métricas oficiales
                                               pero se deja disponible para depuración manual)
 
-Salidas (sección 5.3):
+Salidas:
     resultados_consolidados.csv
     resumen_por_tipo_falla.csv
     boxplot_tiempo_deteccion.png
@@ -15,7 +15,7 @@ Salidas (sección 5.3):
     boxplot_tiempo_reintegracion.png
     veredicto impreso en consola
 
-Umbrales (sección 4 de 06-protocolo-experimental-y-metricas.md):
+Umbrales:
     detección       <= 15 s
     exposición      <  2 %
     reintegración   <= 20 s
@@ -72,6 +72,7 @@ def analizar_corrida(archivo_harness: str, df_monitor: pd.DataFrame) -> dict:
         return {
             "tipo_falla": tipo_falla, "numero_corrida": numero_corrida,
             "tiempo_deteccion_s": None, "ventana_exposicion_pct": None,
+            "solicitudes_incorrectas_ventana": None, "solicitudes_totales_corrida": None,
             "tiempo_reintegracion_s": None, "falsos_positivos_pct": None,
             "cumple_deteccion": False, "cumple_exposicion": False, "cumple_reintegracion": False,
             "nota": "corrida incompleta: falta inicio_corrida o fin_corrida",
@@ -108,15 +109,41 @@ def analizar_corrida(archivo_harness: str, df_monitor: pd.DataFrame) -> dict:
             tiempo_deteccion_s = (ts_deteccion - ts_falla_inyectada).total_seconds()
 
     # --- Métrica 2: Ventana de exposición al cliente ---
+    # Numerador  : solicitudes de la VENTANA (falla_inyectada -> cambio_estado a unhealthy)
+    #              con es_correcta == False.
+    # Denominador: TOTAL de solicitudes de tráfico sostenido de TODA la corrida
+    #              (calentamiento excluido). NUNCA el tamaño de la ventana.
     ventana_exposicion_pct = None
+    solicitudes_incorrectas_ventana = None
+    solicitudes_totales_corrida = None
     if ts_falla_inyectada is not None and "solicitud_resultado" in df_h["evento"].values:
         df_res = df_h[df_h["evento"] == "solicitud_resultado"].copy()
         df_res["ts_resp"] = df_res["timestamp_respuesta"].apply(a_timestamp)
+
+        # Instante que separa el calentamiento del tráfico sostenido.
+        fila_fin_calent = df_h[df_h["evento"] == "fin_calentamiento"]
+        ts_fin_calentamiento = (
+            a_timestamp(fila_fin_calent.iloc[0]["timestamp"])
+            if not fila_fin_calent.empty
+            else ts_inicio_corrida
+        )
+
+        # Denominador: todas las solicitudes sostenidas de la corrida (sin calentamiento).
+        df_sostenido = df_res[df_res["ts_resp"] > ts_fin_calentamiento]
+        solicitudes_totales_corrida = len(df_sostenido)
+
+        # Numerador: solo las de la ventana falla_inyectada -> detección, incorrectas.
         limite_superior = ts_deteccion if ts_deteccion is not None else ts_fin_corrida
-        en_ventana = df_res[(df_res["ts_resp"] >= ts_falla_inyectada) & (df_res["ts_resp"] <= limite_superior)]
-        if len(en_ventana) > 0:
-            incorrectas = (en_ventana["es_correcta"] == False).sum()  # noqa: E712
-            ventana_exposicion_pct = 100.0 * incorrectas / len(en_ventana)
+        en_ventana = df_sostenido[
+            (df_sostenido["ts_resp"] >= ts_falla_inyectada)
+            & (df_sostenido["ts_resp"] <= limite_superior)
+        ]
+        solicitudes_incorrectas_ventana = int((en_ventana["es_correcta"] == False).sum())  # noqa: E712
+
+        if solicitudes_totales_corrida > 0:
+            ventana_exposicion_pct = (
+                100.0 * solicitudes_incorrectas_ventana / solicitudes_totales_corrida
+            )
 
     # --- Métrica 3: Tiempo de reintegración ---
     tiempo_reintegracion_s = None
@@ -146,6 +173,8 @@ def analizar_corrida(archivo_harness: str, df_monitor: pd.DataFrame) -> dict:
         "numero_corrida": numero_corrida,
         "tiempo_deteccion_s": tiempo_deteccion_s,
         "ventana_exposicion_pct": ventana_exposicion_pct,
+        "solicitudes_incorrectas_ventana": solicitudes_incorrectas_ventana,
+        "solicitudes_totales_corrida": solicitudes_totales_corrida,
         "tiempo_reintegracion_s": tiempo_reintegracion_s,
         "falsos_positivos_pct": falsos_positivos_pct,
         "cumple_deteccion": (tiempo_deteccion_s is not None and tiempo_deteccion_s <= UMBRAL_DETECCION_S),
@@ -183,7 +212,7 @@ def imprimir_veredicto(df: pd.DataFrame):
         pct_reintegracion = 100.0 * sub["cumple_reintegracion"].sum() / n
 
         respaldada = pct_deteccion >= 95 and pct_exposicion >= 95 and pct_reintegracion >= 95
-        veredicto = "HIPÓTESIS RESPALDADA" if respaldada else "HIPÓTESIS RECHAZADA (revisar causa raíz, sección 5 de 06)"
+        veredicto = "HIPÓTESIS RESPALDADA" if respaldada else "HIPÓTESIS RECHAZADA (revisar causa raíz)"
 
         print(f"\n--- {tipo} ({n} corridas) ---")
         print(f"  Detección    ≤ {UMBRAL_DETECCION_S}s : {pct_deteccion:.0f}% de las corridas cumplen")
@@ -193,7 +222,7 @@ def imprimir_veredicto(df: pd.DataFrame):
 
     print("\nNOTA: este veredicto automático es un apoyo de lectura rápida (criterio: ≥95% de las 20")
     print("corridas cumpliendo cada umbral). La decisión FINAL sobre si la hipótesis se respalda o se")
-    print("rechaza es del equipo, revisando los datos reales, según GUIA-EQUIPO-EJECUCION.md, Paso 6.")
+    print("rechaza es del equipo, revisando los datos reales de las corridas.")
 
 
 def main():

@@ -94,10 +94,9 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # Sin -f: solo confirma que el puerto responde (cualquier código HTTP),
-      # tal como permite 05-docker-compose-y-despliegue.md sección 2. No se usa
-      # /cotizar con el payload real para no inyectar tráfico sintético extra
-      # durante las 60 corridas formales.
+      # Sin -f: solo confirma que el puerto responde (cualquier código HTTP).
+      # No se usa /cotizar con el payload real para no inyectar tráfico
+      # sintético extra durante las 60 corridas formales.
       test: ["CMD", "curl", "-s", "-o", "/dev/null", "http://localhost:8000/"]
       interval: 3s
       timeout: 2s
