@@ -1,0 +1,35 @@
+{
+  "1": {
+    "descripcion": "Prueba de humo: solo tráfico legítimo, sin ataque inyectado.",
+    "duracion_segundos": 60,
+    "tasa_promedio_por_segundo": 1.0,
+    "proporcion_clientes": 0.5,
+    "proporcion_asesores": 0.35,
+    "proporcion_operaciones": 0.15,
+    "patron_ataque": null,
+    "instante_inyeccion_fraccion": null,
+    "simular_entrega_duplicada": false
+  },
+  "2": {
+    "descripcion": "Tráfico legítimo + una violación de alcance inyectada a mitad de la corrida.",
+    "duracion_segundos": 120,
+    "tasa_promedio_por_segundo": 1.0,
+    "proporcion_clientes": 0.5,
+    "proporcion_asesores": 0.35,
+    "proporcion_operaciones": 0.15,
+    "patron_ataque": "violacion_alcance",
+    "instante_inyeccion_fraccion": 0.5,
+    "simular_entrega_duplicada": false
+  },
+  "3": {
+    "descripcion": "Tráfico legítimo + ráfaga de diversidad inyectada a mitad de la corrida, con simulación de entrega duplicada del hallazgo para validar la idempotencia de la reacción.",
+    "duracion_segundos": 120,
+    "tasa_promedio_por_segundo": 1.0,
+    "proporcion_clientes": 0.5,
+    "proporcion_asesores": 0.35,
+    "proporcion_operaciones": 0.15,
+    "patron_ataque": "rafaga_diversidad",
+    "instante_inyeccion_fraccion": 0.5,
+    "simular_entrega_duplicada": true
+  }
+}

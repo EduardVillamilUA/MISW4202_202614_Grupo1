@@ -1,0 +1,37 @@
+# Bytecode y cachés de Python (se regeneran solos al ejecutar cualquier script o servicio)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales (harness-experimento se ejecuta desde el host, no en Docker,
+# y se instala con `pip install -r requirements.txt` en un entorno propio de cada máquina)
+.venv/
+venv/
+env/
+
+# Bases de datos SQLite generadas en ejecuciones locales de registro-auditoria
+# (fuera de Docker, RUTA_SQLITE_AUDITORIA por defecto cae dentro del propio repo)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Salidas de cada corrida del harness: archivos combinados, métricas y gráficas.
+# Son resultados reproducibles de una ejecución, no código fuente ni configuración;
+# versionarlos haría crecer el repositorio sin necesidad (ver harness-experimento/README.md).
+harness-experimento/resultados/
+
+# Overrides locales de Docker Compose (variantes de puertos, volúmenes o servicios
+# propias de una máquina, que no deben imponerse al resto del equipo)
+docker-compose.override.yml
+
+# Logs sueltos que algún componente pudiera escribir a disco durante pruebas manuales
+*.log
+
+# Archivos de sistema operativo y de editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,66 @@
+{
+  "actor-cli-001": {
+    "rol": "cliente",
+    "client_id_propio": "cli-001"
+  },
+  "actor-cli-002": {
+    "rol": "cliente",
+    "client_id_propio": "cli-002"
+  },
+  "actor-cli-003": {
+    "rol": "cliente",
+    "client_id_propio": "cli-003"
+  },
+  "actor-cli-004": {
+    "rol": "cliente",
+    "client_id_propio": "cli-004"
+  },
+  "actor-cli-005": {
+    "rol": "cliente",
+    "client_id_propio": "cli-005"
+  },
+  "actor-cli-006": {
+    "rol": "cliente",
+    "client_id_propio": "cli-006"
+  },
+  "actor-cli-007": {
+    "rol": "cliente",
+    "client_id_propio": "cli-007"
+  },
+  "actor-cli-008": {
+    "rol": "cliente",
+    "client_id_propio": "cli-008"
+  },
+  "actor-cli-009": {
+    "rol": "cliente",
+    "client_id_propio": "cli-009"
+  },
+  "actor-cli-010": {
+    "rol": "cliente",
+    "client_id_propio": "cli-010"
+  },
+  "actor-ase-001": {
+    "rol": "asesor",
+    "client_id_propio": null
+  },
+  "actor-ase-002": {
+    "rol": "asesor",
+    "client_id_propio": null
+  },
+  "actor-ase-003": {
+    "rol": "asesor",
+    "client_id_propio": null
+  },
+  "actor-ase-004": {
+    "rol": "asesor",
+    "client_id_propio": null
+  },
+  "actor-ops-001": {
+    "rol": "operaciones",
+    "client_id_propio": null
+  },
+  "actor-ops-002": {
+    "rol": "operaciones",
+    "client_id_propio": null
+  }
+}

@@ -1,0 +1,117 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUTA_DIRECTORIO_ACTORES: /app/config/actores.json
+      URL_SERVICIO_PERFILAMIENTO: http://servicio-perfilamiento:8001
+      PUERTO: 8000
+    volumes:
+      # El directorio de actores es propio de este componente (ver
+      # api-gateway/README.md); se monta de solo lectura para que pueda
+      # regenerarse desde fuera del contenedor (a mano o con
+      # harness-experimento/seed_actores.py) sin reconstruir la imagen.
+      - ./api-gateway/config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/salud"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      redis:
+        condition: service_healthy
+      servicio-perfilamiento:
+        condition: service_healthy
+
+  servicio-perfilamiento:
+    build: ./servicio-perfilamiento
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PUERTO: 8001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/salud"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  monitor-accesos-indebidos:
+    build: ./monitor-accesos-indebidos
+    ports:
+      - "8002:8002"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      VENTANA_SEGUNDOS: ${VENTANA_SEGUNDOS:-30}
+      UMBRAL_VOLUMEN: ${UMBRAL_VOLUMEN:-8}
+      UMBRAL_DIVERSIDAD: ${UMBRAL_DIVERSIDAD:-5}
+      ROLES_ALCANCE_AMPLIADO: "asesor,operaciones"
+      PUERTO: 8002
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/salud"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  orquestador-reaccion:
+    build: ./orquestador-reaccion
+    ports:
+      - "8003:8003"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      URL_REGISTRO_AUDITORIA: http://registro-auditoria:8004
+      TTL_PROCESADOS_SEGUNDOS: 3600
+      PUERTO: 8003
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/salud"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      redis:
+        condition: service_healthy
+      registro-auditoria:
+        condition: service_healthy
+
+  registro-auditoria:
+    build: ./registro-auditoria
+    ports:
+      - "8004:8004"
+    environment:
+      RUTA_SQLITE_AUDITORIA: /app/data/auditoria.db
+      PUERTO: 8004
+    volumes:
+      - datos-auditoria:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/salud"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  datos-auditoria:
