@@ -84,6 +84,25 @@ cliente_redis = redis.Redis(
     socket_connect_timeout=2,
 )
 
+# Cliente Redis independiente, exclusivo del hilo de fondo que hace
+# pubsub.listen(). Esa llamada debe poder bloquear indefinidamente mientras
+# espera el próximo mensaje del canal: un silencio de varios segundos (algo
+# normal, no un síntoma de falla) es indistinguible, con un socket_timeout
+# corto, de una conexión realmente caída, y provoca una resuscripción
+# constante. Compartir el cliente_redis de arriba (pensado para comandos
+# puntuales rápidos desde los endpoints HTTP) además dejaría, en cada uno de
+# esos timeouts espurios, una conexión a medio leer en el pool compartido,
+# que un request HTTP posterior podría heredar y quedar colgado. Sin
+# socket_timeout, listen() solo levanta una excepción ante una caída real de
+# la conexión (por ejemplo, si Redis se reinicia), que es el único caso que
+# este hilo necesita manejar reconectando.
+cliente_redis_pubsub = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    decode_responses=True,
+    socket_connect_timeout=5,
+)
+
 # Marca de tiempo (reloj monotónico) del último evento de acceso procesado
 # con éxito. Se usa únicamente como señal de diagnóstico en /salud; no
 # participa en ninguna decisión de detección.
@@ -224,8 +243,9 @@ def _consumir_canal_acceso_perfil() -> None:
     global _ultimo_evento_procesado_monotonic
 
     while True:
+        pubsub = None
         try:
-            pubsub = cliente_redis.pubsub(ignore_subscribe_messages=True)
+            pubsub = cliente_redis_pubsub.pubsub(ignore_subscribe_messages=True)
             pubsub.subscribe(CANAL_ACCESO_PERFIL)
             logger.info("suscrito a %s", CANAL_ACCESO_PERFIL)
 
@@ -241,6 +261,8 @@ def _consumir_canal_acceso_perfil() -> None:
                     continue
                 _ultimo_evento_procesado_monotonic = time.monotonic()
         except redis.exceptions.RedisError as exc:
+            if pubsub is not None:
+                pubsub.close()
             logger.error(
                 "fallo_suscripcion_canal_acceso error=%s; reintentando en %ds",
                 exc, ESPERA_RECONEXION_SEGUNDOS,

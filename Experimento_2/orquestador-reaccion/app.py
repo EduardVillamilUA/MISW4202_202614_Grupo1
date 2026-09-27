@@ -81,6 +81,26 @@ cliente_redis = redis.Redis(
     socket_connect_timeout=2,
 )
 
+# Cliente Redis independiente, exclusivo del hilo de fondo que hace
+# pubsub.listen(). Esa llamada debe poder bloquear indefinidamente mientras
+# espera el próximo hallazgo: un silencio de varios segundos entre hallazgos
+# (lo normal, no un síntoma de falla) es indistinguible, con un
+# socket_timeout corto, de una conexión realmente caída, y provoca una
+# resuscripción constante. Compartir el cliente_redis de arriba (pensado
+# para comandos puntuales rápidos desde los endpoints HTTP y las acciones de
+# reacción) además dejaría, en cada uno de esos timeouts espurios, una
+# conexión a medio leer en el pool compartido, que un request HTTP
+# posterior podría heredar y quedar colgado. Sin socket_timeout, listen()
+# solo levanta una excepción ante una caída real de la conexión (por
+# ejemplo, si Redis se reinicia), que es el único caso que este hilo
+# necesita manejar reconectando.
+cliente_redis_pubsub = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    decode_responses=True,
+    socket_connect_timeout=5,
+)
+
 # Señal de vida del hilo consumidor: se marca cada vez que el hilo logra
 # suscribirse a Redis, y se limpia si pierde la conexión. /salud la usa para
 # distinguir "el proceso está vivo" de "el proceso está realmente escuchando".
@@ -240,8 +260,9 @@ def _consumir_hallazgos() -> None:
     procesar un mensaje puntual no debe tumbar la suscripción completa.
     """
     while True:
+        pubsub = None
         try:
-            pubsub = cliente_redis.pubsub()
+            pubsub = cliente_redis_pubsub.pubsub()
             pubsub.subscribe(CANAL_HALLAZGOS)
             _consumidor_activo.set()
             logger.info("suscrito_a_canal canal=%s", CANAL_HALLAZGOS)
@@ -255,6 +276,8 @@ def _consumir_hallazgos() -> None:
                     logger.exception("fallo_inesperado_procesando_hallazgo mensaje=%s", mensaje)
         except redis.exceptions.RedisError as exc:
             _consumidor_activo.clear()
+            if pubsub is not None:
+                pubsub.close()
             logger.error(
                 "conexion_redis_perdida_reintentando error=%s espera_s=%s",
                 exc, ESPERA_RECONEXION_REDIS_SEGUNDOS,
