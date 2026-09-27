@@ -2,9 +2,9 @@
 analizar_calibracion.py
 =========================
 Calcula la tasa de falsos positivos de una o varias corridas de calibración
-(ver `10-PLAN-DE-PRUEBAS-METRICAS-Y-CALIBRACION.md`, sección 1), cuando esas
-corridas se generaron invocando directamente `generador_trafico_legitimo.py`
-en vez de `ejecutar_combinacion.py`.
+del umbral heurístico de `monitor-accesos-indebidos`, cuando esas corridas se
+generaron invocando directamente `generador_trafico_legitimo.py` en vez de
+`ejecutar_combinacion.py`.
 
 Por qué existe este script aparte de `analizar_resultados.py`:
 `analizar_resultados.py` solo sabe leer archivos producidos por

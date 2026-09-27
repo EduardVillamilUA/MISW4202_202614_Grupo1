@@ -168,6 +168,10 @@ código. Para reproducir una corrida de calibración de umbrales, repetir este c
 de umbral probado (sección 4), pasando `--umbral-bajo-prueba <valor>` a `ejecutar_combinacion.py`
 para que quede asociado a esa corrida en las métricas.
 
+Para las corridas formales, que requieren varias repeticiones por combinación,
+`harness-experimento/ejecutar_lote_formal.py` automatiza el lanzamiento secuencial y puede
+reanudarse si se interrumpe (ver `harness-experimento/README.md`, sección 5.4.1).
+
 ## 6. Operación del entorno
 
 **Ver logs de un componente durante una corrida:**

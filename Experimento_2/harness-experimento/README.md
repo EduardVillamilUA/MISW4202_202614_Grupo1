@@ -26,6 +26,7 @@ teniendo, por fuera del sistema, la constancia independiente de que la solicitud
 | `generador_trafico_legitimo.py` | Simula tráfico normal: clientes consultando su propio perfil, asesores/operaciones consultando un puñado de perfiles distintos. |
 | `generador_ataque.py` | Inyecta, de forma puntual, una violación de alcance o una ráfaga de diversidad. |
 | `ejecutar_combinacion.py` | Orquesta una corrida completa: lanza tráfico legítimo, inyecta el ataque en el instante correcto, y recupera los eventos de auditoría al terminar. |
+| `ejecutar_lote_formal.py` | Lanza secuencialmente todas las repeticiones formales de una o varias combinaciones (por ejemplo, las 20 que pide el plan de pruebas), reanudando desde la última repetición ya presente en el directorio de salida y limpiando entre cada una el estado de Redis propio de una corrida (`bloqueados`, `ventana:*`). |
 | `analizar_resultados.py` | Calcula las métricas y genera las tablas y gráficas a partir de los archivos que produjo `ejecutar_combinacion.py`. |
 | `analizar_calibracion.py` | Calcula la tasa de falsos positivos de una corrida generada directamente con `generador_trafico_legitimo.py` (sin pasar por `ejecutar_combinacion.py`), cruzando el `.jsonl` crudo de solicitudes contra `GET /eventos` de `registro-auditoria` en vivo. Pensado específicamente para la fase de calibración del umbral heurístico, antes de fijarlo para las corridas formales. |
 | `combinaciones.json` | Define, por número de combinación, qué mezcla de tráfico y qué ataque (si aplica) ejecuta `ejecutar_combinacion.py`. |
@@ -50,11 +51,10 @@ de tráfico sin editar el directorio de actores. El parámetro `--tasa-promedio-
 rol descritos arriba, que ya están pensados para no disparar la regla heurística de detección si los
 umbrales del monitor están bien calibrados.
 
-El rango de 2 a 4 clientes distintos por ventana de los actores de rol ampliado también se puede ampliar con
-`--diversidad-min-por-ventana` y `--diversidad-max-por-ventana` (por defecto, 2 y 4 — el comportamiento
-original queda intacto si no se pasan). Esto se agregó para poder generar, durante la fase de calibración,
-tráfico legítimo deliberadamente más exigente que el normal y así distinguir candidatos de `UMBRAL_DIVERSIDAD`
-que con el tráfico por defecto resultan indistinguibles.
+El rango de clientes distintos por ventana de los actores de rol ampliado es configurable con
+`--diversidad-min-por-ventana` y `--diversidad-max-por-ventana` (por defecto, 2 y 4). Esto permite, durante
+la fase de calibración, generar tráfico legítimo con distintos niveles de intensidad y comparar cómo se
+comporta cada candidato de `UMBRAL_DIVERSIDAD` bajo cargas de trabajo más exigentes que el tráfico normal.
 
 ### 1.3. Inyección de ataques
 
@@ -105,8 +105,9 @@ Lee uno o varios archivos combinados y calcula, por corrida y agregado por combi
 
 | Métrica | Cómo se calcula |
 | --- | --- |
-| Tasa de detección | De las solicitudes marcadas como ataque, proporción para las que existe un hallazgo en el registro de auditoría con el mismo `actor_id`/`client_id_consultado`, detectado entre 0 y `--ventana-correlacion-segundos` después del envío. |
-| Tasa de falsos positivos | Igual, pero sobre las solicitudes marcadas como tráfico legítimo. |
+| Tasa de detección (por consulta) | De las solicitudes marcadas como ataque, proporción para las que existe un hallazgo en el registro de auditoría con el mismo `actor_id`/`client_id_consultado`, detectado entre 0 y `--ventana-correlacion-segundos` después del envío. En un ataque de una sola solicitud (`violacion_alcance`) esto ya es la métrica correcta; en una ráfaga (`rafaga_diversidad`) subestima el desempeño real, porque en cuanto el patrón se detecta y el actor queda bloqueado, las solicitudes restantes de la ráfaga son rechazadas por `api-gateway` antes de llegar al monitor y nunca pueden generar su propio hallazgo. |
+| `patron_detectado` (por corrida) | `True` si se generó al menos un hallazgo contra el `actor_id` atacante en algún momento de la corrida, sin importar a cuál de sus solicitudes individuales quede asociado. Es la métrica que corresponde comparar contra el umbral de aceptación de la Validación 2 cuando el ataque es una ráfaga; el promedio de esta columna en la tabla agregada (`patron_detectado_promedio`) es la tasa de detección real de la combinación. |
+| Tasa de falsos positivos | Igual que la tasa de detección por consulta, pero sobre las solicitudes marcadas como tráfico legítimo. |
 | Latencia de detección (p95) | `timestamp_deteccion − timestamp_envio` de cada ataque detectado; percentil 95 sobre la corrida. |
 | Latencia de reacción (p95) | `timestamp_reaccion − timestamp_deteccion` de la reacción no-duplicada asociada a cada hallazgo; percentil 95 sobre la corrida. |
 | Tasa de reacciones idempotentes correctas | Se agrupan las reacciones por `evento_id`; para cada grupo con más de una reacción (indicio de hallazgo duplicado), se confirma que a lo sumo una está marcada `es_duplicado=false` — eso es, mirando el propio registro, la prueba de que la acción de bloqueo real solo se ejecutó una vez. |
@@ -275,6 +276,18 @@ Para una corrida de calibración, indicando el umbral activo en el monitor en es
 python ejecutar_combinacion.py --combinacion 3 --repeticion 1 \
   --salida resultados/calibracion_umbral5_rep1.jsonl --umbral-bajo-prueba 5
 ```
+
+### 5.4.1. Ejecutar el lote completo de repeticiones formales
+
+En vez de invocar `ejecutar_combinacion.py` una por una, `ejecutar_lote_formal.py` lanza todas las
+repeticiones que falten de las combinaciones indicadas, hasta llegar al número pedido:
+
+```bash
+python ejecutar_lote_formal.py --repeticiones 20 --umbral-bajo-prueba 8
+```
+
+Si se interrumpe a la mitad, volver a invocarlo con los mismos parámetros retoma desde la primera
+repetición que no esté presente en `resultados/`, sin repetir las ya completadas.
 
 ### 5.5. Analizar resultados
 

@@ -105,6 +105,36 @@ def calcular_metricas_corrida(corrida: dict, ventana_correlacion_segundos: float
         if any(_hallazgo_coincide(solicitud, e, ventana_correlacion_segundos) for e in hallazgos)
     )
 
+    # "tasa_deteccion" (arriba) cuenta, de las N solicitudes individuales de una
+    # ráfaga de ataque, a cuántas se les puede atribuir un hallazgo con su
+    # mismo client_id exacto. Eso subestima estructuralmente el desempeño real
+    # en un patrón de ráfaga: en cuanto el monitor detecta el patrón (en la
+    # consulta que cruza el umbral) y el orquestador bloquea al actor, las
+    # solicitudes restantes de la ráfaga ni siquiera llegan a
+    # servicio-perfilamiento (el Gateway las rechaza con 403), así que jamás
+    # pueden generar su propio hallazgo — no porque el sistema no las haya
+    # detectado, sino porque el bloqueo ya impidió que llegaran a ser un
+    # acceso indebido consumado. "patron_detectado" mide, en cambio, lo que
+    # realmente pide la historia de arquitectura: si en algún momento de la
+    # corrida se generó al menos un hallazgo contra el actor atacante,
+    # independientemente de a cuál de sus solicitudes individuales quede
+    # asociado. Es la métrica correcta para comparar contra el umbral de
+    # aceptación de la Validación 2 cuando el ataque es una ráfaga (no aplica
+    # esta distinción a una violación de alcance de una sola solicitud, donde
+    # ambas métricas coinciden).
+    # La latencia de detección relevante para el umbral de aceptación ("menos
+    # de un segundo desde que se supera la ventana") sigue siendo la que ya
+    # calcula "latencia_deteccion_p95_ms" arriba: se mide desde la solicitud
+    # puntual que efectivamente cruza el umbral, no desde el inicio de la
+    # ráfaga completa. patron_detectado no necesita su propia latencia; solo
+    # aporta la señal de sí/no que "tasa_deteccion" no puede dar correctamente
+    # en un ataque tipo ráfaga.
+    actor_atacante = ataques[0]["actor_id"] if ataques else None
+    hallazgos_del_atacante = (
+        [h for h in hallazgos if h.get("actor_id") == actor_atacante] if actor_atacante else []
+    )
+    patron_detectado = (len(hallazgos_del_atacante) > 0) if actor_atacante else None
+
     latencias_reaccion_ms = []
     for hallazgo in hallazgos:
         # La reacción "real" (no duplicada) asociada a este hallazgo es la
@@ -149,6 +179,7 @@ def calcular_metricas_corrida(corrida: dict, ventana_correlacion_segundos: float
         "tasa_reacciones_idempotentes_correctas": (
             (grupos_correctos / len(grupos_duplicados)) if grupos_duplicados else None
         ),
+        "patron_detectado": patron_detectado,
         "latencias_deteccion_ms": latencias_deteccion_ms,
     }
 
@@ -166,6 +197,7 @@ def agregar_por_combinacion(tabla: pd.DataFrame) -> pd.DataFrame:
     columnas_metricas = [
         "tasa_deteccion", "tasa_falsos_positivos", "latencia_deteccion_p95_ms",
         "latencia_reaccion_p95_ms", "tasa_reacciones_idempotentes_correctas",
+        "patron_detectado",
     ]
     filas = []
     for combinacion, grupo in tabla.groupby("combinacion"):
