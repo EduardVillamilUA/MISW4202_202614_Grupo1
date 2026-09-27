@@ -27,6 +27,7 @@ teniendo, por fuera del sistema, la constancia independiente de que la solicitud
 | `generador_ataque.py` | Inyecta, de forma puntual, una violación de alcance o una ráfaga de diversidad. |
 | `ejecutar_combinacion.py` | Orquesta una corrida completa: lanza tráfico legítimo, inyecta el ataque en el instante correcto, y recupera los eventos de auditoría al terminar. |
 | `analizar_resultados.py` | Calcula las métricas y genera las tablas y gráficas a partir de los archivos que produjo `ejecutar_combinacion.py`. |
+| `analizar_calibracion.py` | Calcula la tasa de falsos positivos de una corrida generada directamente con `generador_trafico_legitimo.py` (sin pasar por `ejecutar_combinacion.py`), cruzando el `.jsonl` crudo de solicitudes contra `GET /eventos` de `registro-auditoria` en vivo. Pensado específicamente para la fase de calibración del umbral heurístico, antes de fijarlo para las corridas formales. |
 | `combinaciones.json` | Define, por número de combinación, qué mezcla de tráfico y qué ataque (si aplica) ejecuta `ejecutar_combinacion.py`. |
 
 ### 1.2. Generación de tráfico legítimo
@@ -48,6 +49,12 @@ de tráfico sin editar el directorio de actores. El parámetro `--tasa-promedio-
 (se usa para loguear una tasa estimada de referencia): la cadencia real de cada actor sigue los rangos por
 rol descritos arriba, que ya están pensados para no disparar la regla heurística de detección si los
 umbrales del monitor están bien calibrados.
+
+El rango de 2 a 4 clientes distintos por ventana de los actores de rol ampliado también se puede ampliar con
+`--diversidad-min-por-ventana` y `--diversidad-max-por-ventana` (por defecto, 2 y 4 — el comportamiento
+original queda intacto si no se pasan). Esto se agregó para poder generar, durante la fase de calibración,
+tráfico legítimo deliberadamente más exigente que el normal y así distinguir candidatos de `UMBRAL_DIVERSIDAD`
+que con el tráfico por defecto resultan indistinguibles.
 
 ### 1.3. Inyección de ataques
 

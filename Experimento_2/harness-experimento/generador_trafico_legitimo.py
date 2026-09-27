@@ -48,9 +48,10 @@ def _worker_cliente(actor_id, client_id_propio, url_gateway, registrador, hasta_
 
 
 def _worker_alcance_ampliado(actor_id, pool_clientes, ventana_referencia_segundos, url_gateway,
-                              registrador, hasta_monotonic):
+                              registrador, hasta_monotonic,
+                              diversidad_min=DIVERSIDAD_MIN_POR_VENTANA, diversidad_max=DIVERSIDAD_MAX_POR_VENTANA):
     while time.monotonic() < hasta_monotonic:
-        num_objetivo = random.randint(DIVERSIDAD_MIN_POR_VENTANA, DIVERSIDAD_MAX_POR_VENTANA)
+        num_objetivo = random.randint(diversidad_min, diversidad_max)
         clientes_ciclo = random.sample(pool_clientes, k=min(num_objetivo, len(pool_clientes)))
         # Las consultas de este ciclo se reparten a lo largo de la ventana de
         # referencia, con algo de aleatoriedad, para no producirlas todas de
@@ -83,6 +84,7 @@ def generar_trafico(
     duracion_segundos, tasa_promedio_por_segundo, proporcion_clientes, proporcion_asesores,
     proporcion_operaciones, ruta_directorio_actores, cantidad_perfiles, url_gateway,
     ventana_referencia_segundos, salida,
+    diversidad_min_por_ventana=DIVERSIDAD_MIN_POR_VENTANA, diversidad_max_por_ventana=DIVERSIDAD_MAX_POR_VENTANA,
 ):
     directorio = cargar_directorio_actores(ruta_directorio_actores)
     registrador = RegistradorSolicitudes(salida)
@@ -102,7 +104,7 @@ def generar_trafico(
     # loguear la tasa esperada, como referencia para quien opera la corrida.
     tasa_estimada = len(activos_clientes) / ((INTERVALO_CLIENTE_MIN_SEGUNDOS + INTERVALO_CLIENTE_MAX_SEGUNDOS) / 2)
     tasa_estimada += (len(activos_asesores) + len(activos_operaciones)) * (
-        (DIVERSIDAD_MIN_POR_VENTANA + DIVERSIDAD_MAX_POR_VENTANA) / 2
+        (diversidad_min_por_ventana + diversidad_max_por_ventana) / 2
     ) / ventana_referencia_segundos
     logger.info(
         "iniciando_trafico_legitimo actores_cliente=%d actores_asesor=%d actores_operaciones=%d "
@@ -128,7 +130,8 @@ def generar_trafico(
     for actor_id in activos_asesores + activos_operaciones:
         hilos.append(threading.Thread(
             target=_worker_alcance_ampliado,
-            args=(actor_id, pool_clientes, ventana_referencia_segundos, url_gateway, registrador, hasta_monotonic),
+            args=(actor_id, pool_clientes, ventana_referencia_segundos, url_gateway, registrador, hasta_monotonic,
+                  diversidad_min_por_ventana, diversidad_max_por_ventana),
             daemon=True,
         ))
 
@@ -152,6 +155,17 @@ def main():
     parser.add_argument("--url-gateway", default="http://localhost:8000")
     parser.add_argument("--ventana-referencia-segundos", type=float, default=30)
     parser.add_argument("--salida", default="resultados/trafico_legitimo.jsonl")
+    parser.add_argument(
+        "--diversidad-min-por-ventana", type=int, default=DIVERSIDAD_MIN_POR_VENTANA,
+        help="Mínimo de clientes distintos que un actor de rol ampliado consulta por ventana de "
+             "referencia. Por defecto usa el rango recomendado por el harness (tráfico normal); "
+             "subirlo permite generar tráfico legítimo más intenso para explorar la sensibilidad "
+             "de la calibración del umbral heurístico.",
+    )
+    parser.add_argument(
+        "--diversidad-max-por-ventana", type=int, default=DIVERSIDAD_MAX_POR_VENTANA,
+        help="Máximo de clientes distintos que un actor de rol ampliado consulta por ventana de referencia.",
+    )
     args = parser.parse_args()
 
     generar_trafico(
@@ -165,6 +179,8 @@ def main():
         url_gateway=args.url_gateway,
         ventana_referencia_segundos=args.ventana_referencia_segundos,
         salida=args.salida,
+        diversidad_min_por_ventana=args.diversidad_min_por_ventana,
+        diversidad_max_por_ventana=args.diversidad_max_por_ventana,
     )
 
 

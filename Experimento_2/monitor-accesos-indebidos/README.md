@@ -103,7 +103,7 @@ no debe tumbar la capacidad de detección del resto de la corrida.
 | `REDIS_PORT` | `6379` | Puerto de Redis |
 | `VENTANA_SEGUNDOS` | `30` | Tamaño de la ventana deslizante por actor |
 | `UMBRAL_VOLUMEN` | `8` | Umbral de consultas totales vigentes en la ventana |
-| `UMBRAL_DIVERSIDAD` | `5` | Umbral de clientes distintos vigentes en la ventana |
+| `UMBRAL_DIVERSIDAD` | `8` | Umbral de clientes distintos vigentes en la ventana (valor calibrado empíricamente por el equipo antes de las corridas formales) |
 | `ROLES_ALCANCE_AMPLIADO` | `asesor,operaciones` | Lista de roles, separados por coma, a los que se les aplica la regla heurística |
 | `PUERTO` | `8002` | Puerto en el que escucha Flask dentro del contenedor |
 
@@ -172,7 +172,7 @@ curl http://localhost:8002/salud
 docker build -t monitor-accesos-indebidos .
 docker run --rm -p 8002:8002 \
   -e REDIS_HOST=redis -e REDIS_PORT=6379 \
-  -e VENTANA_SEGUNDOS=30 -e UMBRAL_VOLUMEN=8 -e UMBRAL_DIVERSIDAD=5 \
+  -e VENTANA_SEGUNDOS=30 -e UMBRAL_VOLUMEN=8 -e UMBRAL_DIVERSIDAD=8 \
   -e ROLES_ALCANCE_AMPLIADO=asesor,operaciones \
   -e PUERTO=8002 \
   monitor-accesos-indebidos

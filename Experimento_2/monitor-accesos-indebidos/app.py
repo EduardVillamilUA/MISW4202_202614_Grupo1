@@ -47,7 +47,7 @@ PUERTO = int(os.environ.get("PUERTO", "8002"))
 
 VENTANA_SEGUNDOS = int(os.environ.get("VENTANA_SEGUNDOS", "30"))
 UMBRAL_VOLUMEN = int(os.environ.get("UMBRAL_VOLUMEN", "8"))
-UMBRAL_DIVERSIDAD = int(os.environ.get("UMBRAL_DIVERSIDAD", "5"))
+UMBRAL_DIVERSIDAD = int(os.environ.get("UMBRAL_DIVERSIDAD", "8"))
 
 # Roles a los que se les aplica la regla heurística de volumen/diversidad en
 # lugar de la regla determinística de alcance (esa última solo tiene sentido
