@@ -178,7 +178,7 @@ def crear_evento():
 
     return jsonify({"id": cursor.lastrowid}), 201
 
-
+# Ruta Eventos
 @app.route("/eventos", methods=["GET"])
 def listar_eventos():
     condiciones = []
@@ -216,7 +216,7 @@ def listar_eventos():
 
     return jsonify(eventos), 200
 
-
+# Ruta salud validacion
 @app.route("/salud", methods=["GET"])
 def salud():
     try:
